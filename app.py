@@ -9,12 +9,12 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent/'.env', override=False)
 #1. ENVIRONMENT & SECRETS CONFIGURATION
 GPU_BACKEND_URL = st.secrets.get("GPU_BACKEND_URL", os.getenv("GPU_BACKEND_URL"))
 GPU_TOKEN = st.secrets.get("GPU_BACKEND_TOKEN", os.getenv("GPU_BACKEND_TOKEN"))
-GPU_TIMEOUT = st.secrets.get("GPU_BACKEND_TIMEOUT", os.getenv("GPU_BACKEND_TIMEOUT"))
+GPU_BACKEND_TIMEOUT = st.secrets.get("GPU_BACKEND_TIMEOUT", os.getenv("GPU_BACKEND_TIMEOUT"))
 
 API = (GPU_BACKEND_URL or os.getenv('LOCAL_AGENT_API_URL', 'http://127.0.0.1:8000')).rstrip('/')
-
-#API=os.getenv('LOCAL_AGENT_API_URL','http://127.0.0.1:8000').rstrip('/')
 TIMEOUT = int(GPU_BACKEND_TIMEOUT) if GPU_BACKEND_TIMEOUT else 1000
+#API=os.getenv('LOCAL_AGENT_API_URL','http://127.0.0.1:8000').rstrip('/')
+
 #TIMEOUT=1000
 st.set_page_config(page_title='Image Agent',page_icon='🖼️',layout='wide',initial_sidebar_state='expanded')
 st.markdown('''<style>
