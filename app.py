@@ -3,32 +3,78 @@ from dotenv import load_dotenv
 from pathlib import Path
 from PIL import Image
 from io import BytesIO
+
 load_dotenv(dotenv_path=Path(__file__).resolve().parent/'.env', override=False)
-API=os.getenv('LOCAL_AGENT_API_URL','http://127.0.0.1:8000').rstrip('/')
-TIMEOUT=1000
+
+#1. ENVIRONMENT & SECRETS CONFIGURATION
+GPU_BACKEND_URL = st.secrets.get("GPU_BACKEND_URL", os.getenv("GPU_BACKEND_URL"))
+GPU_TOKEN = st.secrets.get("GPU_BACKEND_TOKEN", os.getenv("GPU_BACKEND_TOKEN"))
+GPU_TIMEOUT = st.secrets.get("GPU_BACKEND_TIMEOUT", os.getenv("GPU_BACKEND_TIMEOUT"))
+
+API = (GPU_BACKEND_URL or os.getenv('LOCAL_AGENT_API_URL', 'http://127.0.0.1:8000')).rstrip('/')
+
+#API=os.getenv('LOCAL_AGENT_API_URL','http://127.0.0.1:8000').rstrip('/')
+TIMEOUT = int(GPU_BACKEND_TIMEOUT) if GPU_BACKEND_TIMEOUT else 1000
+#TIMEOUT=1000
 st.set_page_config(page_title='Image Agent',page_icon='🖼️',layout='wide',initial_sidebar_state='expanded')
 st.markdown('''<style>
 .block-container{padding-top:1.3rem;max-width:1500px}.stChatMessage{border-radius:14px}.current-chip{display:inline-block;border:1px solid #555;border-radius:10px;padding:5px 10px;font-size:.85rem}.sidebar-title{font-size:1.15rem;font-weight:700}
 </style>''',unsafe_allow_html=True)
 
+# Helper function to inject headers automatically
+def get_auth_headers():
+    headers = {}
+    if GPU_TOKEN:
+        headers["Authorization"] = f"Bearer {GPU_TOKEN}"
+    return headers
+
 def api_get(path, **kwargs):
     kwargs.setdefault("timeout", 20)
-    response = requests.get(API + path, **kwargs)
+    # Automatically merge the authorization token if it exists
+    headers = kwargs.pop("headers", {})
+    headers.update(get_auth_headers())
+    
+    response = requests.get(API + path, headers=headers, **kwargs)
     response.raise_for_status()
     return response
+
+#def api_get(path, **kwargs):
+#    kwargs.setdefault("timeout", 20)
+#    response = requests.get(API + path, **kwargs)
+#    response.raise_for_status()
+#    return response
 
 def api_post(path, **kwargs):
     kwargs.setdefault("timeout", TIMEOUT)
-    response = requests.post(API + path, **kwargs)
+    # Automatically merge the authorization token if it exists
+    headers = kwargs.pop("headers", {})
+    headers.update(get_auth_headers())
+    
+    response = requests.post(API + path, headers=headers, **kwargs)
     response.raise_for_status()
     return response
 
+#def api_post(path, **kwargs):
+#    kwargs.setdefault("timeout", TIMEOUT)
+#    response = requests.post(API + path, **kwargs)
+#    response.raise_for_status()
+#    return response
+
 def refresh_chats():
-    try: st.session_state.chats=api_get('/v1/conversations').json()
-    except requests.RequestException as e: st.session_state.api_error=str(e); st.session_state.chats=[]
+    try: 
+        st.session_state.chats = api_get('/v1/conversations').json()
+    except requests.RequestException as e: 
+        st.session_state.api_error = str(e)
+        st.session_state.chats = []
+        
+#def refresh_chats():
+#    try: st.session_state.chats=api_get('/v1/conversations').json()
+#    except requests.RequestException as e: st.session_state.api_error=str(e); st.session_state.chats=[]
 
 def open_chat(cid):
     data=api_get(f'/v1/conversations/{cid}').json(); st.session_state.chat_id=cid; st.session_state.chat_data=data
+    #st.session_state.chat_id = cid
+    #st.session_state.chat_data = data
 
 if 'chats' not in st.session_state: refresh_chats()
 if 'chat_id' not in st.session_state: st.session_state.chat_id=None
@@ -60,10 +106,12 @@ with st.sidebar:
         with st.expander('Conversation settings'):
             new_title=st.text_input('Rename chat',value=(st.session_state.chat_data or {}).get('conversation',{}).get('title',''))
             if st.button('Save title'):
-                try: requests.patch(API+f"/v1/conversations/{st.session_state.chat_id}",data={'title':new_title},timeout=10).raise_for_status(); refresh_chats(); open_chat(st.session_state.chat_id); st.rerun()
+                try: requests.patch(API+f"/v1/conversations/{st.session_state.chat_id}",data={'title':new_title},headers=get_auth_headers(),timeout=10).raise_for_status(); refresh_chats(); open_chat(st.session_state.chat_id); st.rerun()
+                #try: requests.patch(API+f"/v1/conversations/{st.session_state.chat_id}",data={'title':new_title},timeout=10).raise_for_status(); refresh_chats(); open_chat(st.session_state.chat_id); st.rerun()
                 except requests.RequestException as e: st.error(str(e))
             if st.button('Delete conversation',type='secondary'):
-                try: api_delete=requests.delete(API+f"/v1/conversations/{st.session_state.chat_id}",timeout=10); api_delete.raise_for_status(); st.session_state.chat_id=None; st.session_state.chat_data=None; refresh_chats(); st.rerun()
+                try: api_delete=requests.delete(API+f"/v1/conversations/{st.session_state.chat_id}",headers=get_auth_headers(),timeout=10); api_delete.raise_for_status(); st.session_state.chat_id=None; st.session_state.chat_data=None; refresh_chats(); st.rerun()
+                #try: api_delete=requests.delete(API+f"/v1/conversations/{st.session_state.chat_id}",timeout=10); api_delete.raise_for_status(); st.session_state.chat_id=None; st.session_state.chat_data=None; refresh_chats(); st.rerun()
                 except requests.RequestException as e: st.error(str(e))
 
 if st.session_state.chat_id is None and st.session_state.chats:
